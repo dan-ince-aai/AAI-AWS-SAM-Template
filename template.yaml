@@ -1,0 +1,143 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  HackathonTeam8 - Audio Transcription Service using AssemblyAI
+
+Parameters:
+  AssemblyAIAPIKey:
+    Description: API key to be used when interacting with AssemblyAI
+    NoEcho: true
+    Type: String
+  ExistingAudioBucketName:
+    Description: (Optional) Name of existing S3 bucket for audio files. If not specified, a new bucket will be created.
+    Type: String
+    Default: ''
+
+Conditions:
+  CreateAudioBucket: !Equals 
+    - !Ref ExistingAudioBucketName
+    - ''
+  UseExistingBucket: !Not [!Equals [!Ref ExistingAudioBucketName, '']]
+
+Globals:
+  Function:
+    Timeout: 300
+    MemorySize: 256
+    Tracing: Active
+    LoggingConfig:
+      LogFormat: JSON
+  Api:
+    TracingEnabled: true
+
+Resources:
+  # S3 Buckets
+  TranscriptBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${AWS::StackName}-transcripts'
+
+  AudioBucket:
+    Type: AWS::S3::Bucket
+    Condition: CreateAudioBucket
+    DependsOn: NewBucketLambdaPermission
+    Properties:
+      BucketName: !Sub '${AWS::StackName}-audio-files'
+      NotificationConfiguration:
+        LambdaFunctionConfigurations:
+          - Events: ['s3:ObjectCreated:*']
+            LambdaFunctionArn: !GetAtt TranscriptionFunction.Arn
+
+  # Lambda Function
+  TranscriptionFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: hello_world/
+      Handler: app.lambda_handler
+      Runtime: python3.13
+      Architectures:
+        - x86_64
+      Environment:
+        Variables:
+          TRANSCRIPT_BUCKET: !Ref TranscriptBucket
+          ASSEMBLYAI_API_KEY: !Ref AssemblyAIAPIKey
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+              Resource:
+                - !If 
+                  - CreateAudioBucket
+                  - !Sub 'arn:aws:s3:::${AudioBucket}/*'
+                  - !Sub 'arn:aws:s3:::${ExistingAudioBucketName}/*'
+            - Effect: Allow
+              Action:
+                - s3:PutObject
+              Resource:
+                - !Sub 'arn:aws:s3:::${TranscriptBucket}/*'
+
+  # Lambda Permissions
+  NewBucketLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Condition: CreateAudioBucket
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt TranscriptionFunction.Arn
+      Principal: s3.amazonaws.com
+      SourceArn: !Sub 'arn:aws:s3:::${AWS::StackName}-audio-files'
+
+  ExistingBucketLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Condition: UseExistingBucket
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt TranscriptionFunction.Arn
+      Principal: s3.amazonaws.com
+      SourceArn: !Sub 'arn:aws:s3:::${ExistingAudioBucketName}'
+
+# Custom Resource to configure notifications for existing bucket
+  ConfigureExistingBucketNotification:
+    Type: Custom::S3BucketNotification
+    Condition: UseExistingBucket
+    Properties:
+      ServiceToken: !GetAtt NotificationFunction.Arn
+      BucketName: !Ref ExistingAudioBucketName
+      NotificationConfiguration:
+        LambdaFunctionConfigurations:
+          - Events: ['s3:ObjectCreated:*']
+            LambdaFunctionArn: !GetAtt TranscriptionFunction.Arn
+
+  NotificationFunction:
+    Type: AWS::Serverless::Function
+    Condition: UseExistingBucket
+    Properties:
+      CodeUri: hello_world/
+      Handler: notification_handler.lambda_handler
+      Runtime: python3.13
+      Architectures:
+        - x86_64
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - 's3:PutBucketNotification'
+              Resource:
+                - !Sub 'arn:aws:s3:::${ExistingAudioBucketName}'
+
+Outputs:
+  AudioBucketName:
+    Description: Name of the S3 bucket for audio files
+    Value: !If 
+      - CreateAudioBucket
+      - !Ref AudioBucket
+      - !Ref ExistingAudioBucketName
+
+  TranscriptBucketName:
+    Description: Name of the S3 bucket for transcripts
+    Value: !Ref TranscriptBucket
+
+  TranscriptionFunctionArn:
+    Description: ARN of the transcription Lambda function
+    Value: !GetAtt TranscriptionFunction.Arn
