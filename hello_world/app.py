@@ -1,7 +1,7 @@
 import json
 import os
 import boto3
-import requests
+import http.client
 import time
 from urllib.parse import unquote_plus
 
@@ -17,33 +17,40 @@ def get_presigned_url(bucket, key, expiration=3600):
     )
 
 def transcribe_audio(audio_url, api_key):
-    """Transcribe audio using AssemblyAI API"""
+    """Transcribe audio using AssemblyAI API with http.client"""
     headers = {
         "authorization": api_key,
         "content-type": "application/json"
     }
     
+    conn = http.client.HTTPSConnection("api.assemblyai.com")
+    
     # Submit the audio file for transcription
-    transcript_endpoint = "https://api.assemblyai.com/v2/transcript"
-    json_data = {"audio_url": audio_url}
+    json_data = json.dumps({"audio_url": audio_url})
+    conn.request("POST", "/v2/transcript", json_data, headers)
+    response = conn.getresponse()
     
-    response = requests.post(transcript_endpoint, json=json_data, headers=headers)
-    if response.status_code != 200:
-        raise Exception(f"Failed to submit audio for transcription: {response.text}")
+    if response.status != 200:
+        raise Exception(f"Failed to submit audio for transcription: {response.read().decode()}")
     
-    transcript_id = response.json()['id']
+    response_data = json.loads(response.read().decode())
+    transcript_id = response_data['id']
     
     # Poll for transcription completion
     while True:
-        polling_endpoint = f"https://api.assemblyai.com/v2/transcript/{transcript_id}"
-        polling_response = requests.get(polling_endpoint, headers=headers)
-        polling_response = polling_response.json()
+        conn = http.client.HTTPSConnection("api.assemblyai.com")
+        conn.request("GET", f"/v2/transcript/{transcript_id}", headers=headers)
+        polling_response = conn.getresponse()
+        polling_data = json.loads(polling_response.read().decode())
 
-        if polling_response['status'] == 'completed':
-            return polling_response['text']
-        elif polling_response['status'] == 'error':
-            raise Exception(f"Transcription failed: {polling_response['error']}")
+        if polling_data['status'] == 'completed':
+            conn.close()
+            return polling_data['text']
+        elif polling_data['status'] == 'error':
+            conn.close()
+            raise Exception(f"Transcription failed: {polling_data['error']}")
         
+        conn.close()
         time.sleep(3)
 
 def lambda_handler(event, context):

@@ -16,11 +16,11 @@ lint = true
 capabilities = "CAPABILITY_IAM"
 confirm_changeset = true
 resolve_s3 = true
-s3_prefix = "greenfield2"
+s3_prefix = "greenfield3"
 region = "us-east-1"
 parameter_overrides = "ExistingAudioBucketName=\"audiofiles-assemblyhackathon\""
 image_repositories = []
-stack_name = "greenfield2"
+stack_name = "greenfield3"
 
 [default.package.parameters]
 resolve_s3 = true
