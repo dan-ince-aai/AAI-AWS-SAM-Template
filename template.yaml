@@ -1,47 +1,79 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: >
-  HackathonTeam8
+  HackathonTeam8 - Audio Transcription Service using AssemblyAI
 
-  Sample SAM Template for HackathonTeam8
-
-# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
 Globals:
   Function:
-    Timeout: 3
-
+    Timeout: 300  # Increased timeout for transcription processing
+    MemorySize: 256
     Tracing: Active
-    # You can add LoggingConfig parameters such as the Logformat, Log Group, and SystemLogLevel or ApplicationLogLevel. Learn more here https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-resource-function.html#sam-function-loggingconfig.
     LoggingConfig:
       LogFormat: JSON
   Api:
     TracingEnabled: true
+
 Resources:
-  HelloWorldFunction:
-    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+  # S3 Buckets
+  AudioBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${AWS::StackName}-audio-files'
+      NotificationConfiguration:
+        LambdaConfigurations:
+          - Event: 's3:ObjectCreated:*'
+            Function: !GetAtt TranscriptionFunction.Arn
+
+  TranscriptBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${AWS::StackName}-transcripts'
+
+  # Lambda Function
+  TranscriptionFunction:
+    Type: AWS::Serverless::Function
     Properties:
       CodeUri: hello_world/
       Handler: app.lambda_handler
       Runtime: python3.13
       Architectures:
-      - x86_64
-      Events:
-        HelloWorld:
-          Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
-          Properties:
-            Path: /hello
-            Method: get
+        - x86_64
+      Environment:
+        Variables:
+          TRANSCRIPT_BUCKET: !Ref TranscriptBucket
+          ASSEMBLYAI_API_KEY: '' # To be set during deployment
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Ref AudioBucket
+        - S3WritePolicy:
+            BucketName: !Ref TranscriptBucket
+        - Statement:
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:PutObject
+              Resource:
+                - !Sub 'arn:aws:s3:::${AudioBucket}/*'
+                - !Sub 'arn:aws:s3:::${TranscriptBucket}/*'
+
+  # S3 Bucket Permissions
+  BucketPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref TranscriptionFunction
+      Principal: s3.amazonaws.com
+      SourceArn: !Sub 'arn:aws:s3:::${AudioBucket}'
 
 Outputs:
-  # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function
-  # Find out more about other implicit resources you can reference within SAM
-  # https://github.com/awslabs/serverless-application-model/blob/master/docs/internals/generated_resources.rst#api
-  HelloWorldApi:
-    Description: API Gateway endpoint URL for Prod stage for Hello World function
-    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/hello/"
-  HelloWorldFunction:
-    Description: Hello World Lambda Function ARN
-    Value: !GetAtt HelloWorldFunction.Arn
-  HelloWorldFunctionIamRole:
-    Description: Implicit IAM Role created for Hello World function
-    Value: !GetAtt HelloWorldFunctionRole.Arn
+  AudioBucketName:
+    Description: Name of the S3 bucket for audio files
+    Value: !Ref AudioBucket
+
+  TranscriptBucketName:
+    Description: Name of the S3 bucket for transcripts
+    Value: !Ref TranscriptBucket
+
+  TranscriptionFunctionArn:
+    Description: ARN of the transcription Lambda function
+    Value: !GetAtt TranscriptionFunction.Arn 
