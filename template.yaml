@@ -51,7 +51,7 @@ Resources:
   TranscriptionFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: hello_world/
+      CodeUri: lambdas/
       Handler: app.lambda_handler
       Runtime: python3.13
       Architectures:
@@ -112,7 +112,7 @@ Resources:
     Type: AWS::Serverless::Function
     Condition: UseExistingBucket
     Properties:
-      CodeUri: hello_world/
+      CodeUri: lambdas/
       Handler: notification_handler.lambda_handler
       Runtime: python3.13
       Architectures:
