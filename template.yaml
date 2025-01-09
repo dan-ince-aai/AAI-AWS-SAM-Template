@@ -2,7 +2,11 @@ AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: >
   HackathonTeam8 - Audio Transcription Service using AssemblyAI
-
+Parameters:
+  AssemblyAIAPIKey:
+    Description: API key to be used when interacting with AssemblyAI
+    NoEcho: true
+    DataType: String
 Globals:
   Function:
     Timeout: 300  # Increased timeout for transcription processing
@@ -41,7 +45,7 @@ Resources:
       Environment:
         Variables:
           TRANSCRIPT_BUCKET: !Ref TranscriptBucket
-          ASSEMBLYAI_API_KEY: '' # To be set during deployment
+          ASSEMBLYAI_API_KEY: !Ref AssemblyAIAPIKey
       Policies:
         - S3ReadPolicy:
             BucketName: !Ref AudioBucket
