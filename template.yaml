@@ -2,14 +2,25 @@ AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: >
   HackathonTeam8 - Audio Transcription Service using AssemblyAI
+
 Parameters:
   AssemblyAIAPIKey:
     Description: API key to be used when interacting with AssemblyAI
     NoEcho: true
-    DataType: String
+    Type: String
+  ExistingAudioBucketName:
+    Description: (Optional) Name of existing S3 bucket for audio files. If not specified, a new bucket will be created.
+    Type: String
+    Default: ''
+
+Conditions:
+  CreateAudioBucket: !Equals 
+    - !Ref ExistingAudioBucketName
+    - ''
+
 Globals:
   Function:
-    Timeout: 300  # Increased timeout for transcription processing
+    Timeout: 300
     MemorySize: 256
     Tracing: Active
     LoggingConfig:
@@ -21,6 +32,7 @@ Resources:
   # S3 Buckets
   AudioBucket:
     Type: AWS::S3::Bucket
+    Condition: CreateAudioBucket
     Properties:
       BucketName: !Sub '${AWS::StackName}-audio-files'
       NotificationConfiguration:
@@ -48,7 +60,10 @@ Resources:
           ASSEMBLYAI_API_KEY: !Ref AssemblyAIAPIKey
       Policies:
         - S3ReadPolicy:
-            BucketName: !Ref AudioBucket
+            BucketName: !If 
+              - CreateAudioBucket
+              - !Ref AudioBucket
+              - !Ref ExistingAudioBucketName
         - S3WritePolicy:
             BucketName: !Ref TranscriptBucket
         - Statement:
@@ -57,7 +72,12 @@ Resources:
                 - s3:GetObject
                 - s3:PutObject
               Resource:
-                - !Sub 'arn:aws:s3:::${AudioBucket}/*'
+                - !Sub 
+                  - 'arn:aws:s3:::${BucketName}/*'
+                  - BucketName: !If 
+                      - CreateAudioBucket
+                      - !Ref AudioBucket
+                      - !Ref ExistingAudioBucketName
                 - !Sub 'arn:aws:s3:::${TranscriptBucket}/*'
 
   # S3 Bucket Permissions
@@ -67,12 +87,20 @@ Resources:
       Action: lambda:InvokeFunction
       FunctionName: !Ref TranscriptionFunction
       Principal: s3.amazonaws.com
-      SourceArn: !Sub 'arn:aws:s3:::${AudioBucket}'
+      SourceArn: !Sub 
+        - 'arn:aws:s3:::${BucketName}'
+        - BucketName: !If 
+            - CreateAudioBucket
+            - !Ref AudioBucket
+            - !Ref ExistingAudioBucketName
 
 Outputs:
   AudioBucketName:
     Description: Name of the S3 bucket for audio files
-    Value: !Ref AudioBucket
+    Value: !If 
+      - CreateAudioBucket
+      - !Ref AudioBucket
+      - !Ref ExistingAudioBucketName
 
   TranscriptBucketName:
     Description: Name of the S3 bucket for transcripts
@@ -80,4 +108,4 @@ Outputs:
 
   TranscriptionFunctionArn:
     Description: ARN of the transcription Lambda function
-    Value: !GetAtt TranscriptionFunction.Arn 
+    Value: !GetAtt TranscriptionFunction.Arn
