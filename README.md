@@ -43,10 +43,12 @@ The service uses the following AWS components:
    - Stack Name: Choose a name for your CloudFormation stack
    - AWS Region: Choose your desired AWS region
    - AssemblyAI API Key: Enter your AssemblyAI API key
-   - ExistingAudioBucketName: (Optional) If you want to use an existing S3 bucket for audio files
+   - ExistingAudioBucketName: (Optional) Leave empty to create a new bucket, or provide an existing bucket name
    - Confirm changes before deploy: Recommended to say yes
    - Allow SAM CLI IAM role creation: Must be yes
    - Save arguments to configuration file: Recommended to say yes
+
+   Note: If you don't provide an existing bucket name, the template will automatically create a new S3 bucket for your audio files.
 
 ## Usage
 
@@ -87,10 +89,6 @@ sam delete
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
 ## Support
 
-If you encounter any issues or have questions, please open an issue in the GitHub repository.
+If you encounter any issues or have questions, please open an issue in the GitHub repository or contact support@assemblyai.com.
