@@ -1,6 +1,6 @@
-# Audio Transcription Service with AWS SAM and AssemblyAI
+# AssemblyAI's AWS SAM Template 🧰
 
-This project provides a serverless audio transcription service built using AWS SAM (Serverless Application Model) and AssemblyAI. When audio files are uploaded to an S3 bucket, they are automatically transcribed using AssemblyAI's powerful transcription API, and the resulting transcripts are stored in a separate S3 bucket.
+This project provides a serverless audio transcription service built using AWS SAM (Serverless Application Model) and AssemblyAI. When audio files are uploaded to an S3 bucket, they are automatically transcribed using AssemblyAI's async speech-to-text API, and the resulting transcripts are stored in a separate S3 bucket.
 
 ## Architecture
 
@@ -8,7 +8,7 @@ This project provides a serverless audio transcription service built using AWS S
 
 The service uses the following AWS components:
 - **Amazon S3**: Two buckets are used - one for audio files and another for transcripts
-- **AWS Lambda**: Processes S3 events and coordinates with AssemblyAI
+- **AWS Lambda**: Processes S3 events and coordinates with the AssemblyAI API
 - **AWS SAM**: Infrastructure as Code (IaC) for easy deployment
 
 ## Prerequisites
